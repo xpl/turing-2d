@@ -214,10 +214,11 @@ MetaShader = $prototype ({
 	
 })
 
-Viewport = $component ({
+Viewport = $prototype ({
 
-	init: function () {
+	constructor: function (cfg) {
 
+		_.extend (this, cfg)
 		_.extend (this, {
 			viewportWidth: $(this.canvas).width (),
 			viewportHeight: $(this.canvas).height (),
@@ -232,6 +233,7 @@ Viewport = $component ({
 				}
 			})), _.identity)
 		})
+
 		if (this.gl) {
 			this.initGL ()
 			this.render ()
@@ -261,7 +263,9 @@ Viewport = $component ({
 			this.beforeDraw ()
 			this.gl.viewport (0, 0, this.viewportWidth, this.viewportHeight)
 			this.draw ()
-			window.requestAnimationFrame ($.proxy (this.render, this), this.canvas)
+
+			var self = this
+			window.requestAnimationFrame (function () { self.render () }, this.canvas)
 		},
 		resize: function (width, height) {
 			$(this.canvas).attr ('width', this.viewportWidth = width)

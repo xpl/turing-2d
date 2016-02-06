@@ -14,6 +14,9 @@ XMLHttpRequestWithCORS = $aspect (XMLHttpRequest, {
 
 Life = $extends (Viewport, {
 
+	constructor: function (cfg) {
+		Viewport.call (this, cfg) },
+
 	initGL: function () {
 
 		_.extend (this, {
@@ -69,9 +72,9 @@ Life = $extends (Viewport, {
 			}),
 			/* buffers */
 			cellBuffer: null, 												// current
-			imageBuffer: this.texture 		({ width: 1024, height: 512 }),
-			cellBuffer1: this.renderTexture ({ width: 1024, height: 512 }),	// back
-			cellBuffer2: this.renderTexture ({ width: 1024, height: 512 }),	// front
+			imageBuffer: this.texture 		({ width: 512, height: 512 }),
+			cellBuffer1: this.renderTexture ({ width: 512, height: 512 }),	// back
+			cellBuffer2: this.renderTexture ({ width: 512, height: 512 }),	// front
 
 			//forkRulesBufer: this.genRandomRules (4, 4),
 			activeRules: 0,
@@ -106,7 +109,7 @@ Life = $extends (Viewport, {
 		this.resetWithRandomRules ()
 		this.fillWithImage ()
 
-		window.setInterval (this.mutateRules, 500)
+		window.setInterval (this.$ (this.mutateRules), 300)
 	},
 
 	mutateRules: function () {
@@ -283,7 +286,7 @@ Life = $extends (Viewport, {
 
 				done () })) },
 
-	fillWithImage: function () { this.updateImageBufferWithRandomImageFromInternet (this.resetCellBuffer) },
+	fillWithImage: function () { this.updateImageBufferWithRandomImageFromInternet (this.$ (this.resetCellBuffer)) },
 
 	resetCellBuffer: function () {
 
@@ -372,7 +375,7 @@ Life = $extends (Viewport, {
 		this.cellBuffer = targetBuffer
 		this.firstFrame = false
 	}),
-	iterate: $raw (function () { var framesToSkip = 20
+	iterate: $raw (function () { var framesToSkip = 10
 
 		for (var i = 0; i < framesToSkip; i++) {
 			this.renderCells (function () {
