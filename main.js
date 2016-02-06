@@ -188,12 +188,12 @@ Life = $extends (Viewport, {
 			}
 		}, this)).resize ()
 	},
-	hueToCSSColor: function (H) {
+	hueToCSSColor: $raw (function (H) {
 		var r = Math.max (0.0, Math.min (1.0, Math.abs (H * 6.0 - 3.0) - 1.0))
 		var g = Math.max (0.0, Math.min (1.0, 2.0 - Math.abs (H * 6.0 - 2.0)))
 		var b = Math.max (0.0, Math.min (1.0, 2.0 - Math.abs (H * 6.0 - 4.0)))
 		return 'rgba(' + Math.round (r * 255) + ',' + Math.round (g * 255) + ',' + Math.round (b * 255) + ', 1.0)'
-	},
+	}),
 	resizeBuffers: function (w, h) {
 		this.cellBuffer1.resize (w, h)
 		this.cellBuffer2.resize (w, h)
@@ -209,12 +209,12 @@ Life = $extends (Viewport, {
 			this.fillWithNothing ()
 		}
 	},
-	eventPoint: function (e) {
+	eventPoint: $raw (function (e) {
 		var offset = $(this.canvas).offset ()
 		return [
 			(e.clientX - offset.left) / (this.viewportWidth * 0.5) - 1.0,
 			(offset.top - e.clientY) / (this.viewportHeight * 0.5) + 1.0, 0.0]
-	},
+	}),
 	onZoom: function (e) {
 		var isMac = navigator.platform == 'MacIntel'
 		var zoom = Math.pow (1.03, e.originalEvent.wheelDelta ?
@@ -225,11 +225,11 @@ Life = $extends (Viewport, {
 			.scale ([zoom, zoom, 1.0])
 			.translate ([-origin[0], -origin[1], 0.0])))
 	},
-	getZoom: function () {
+	getZoom: $raw (function () {
 		return vec3.length (vec3.subtract (
 				this.transform.apply ([0, 0, 0]),
 				this.transform.apply ([1, 0, 0])))
-	},
+	}),
 	onDragStart: function (e) {
 		this.isDragging = true
 		var origin = this.transform.applyInverse (this.eventPoint (e))
@@ -256,12 +256,14 @@ Life = $extends (Viewport, {
 			this.shouldPaint = true
 		}, this))
 		$(window).mouseup ($.proxy (function () {
+
 			this.isPainting = false
 			$(window).unbind ('mouseup')
 			$(window).unbind ('mousemove')
 		}, this))
 	},
-	fillWithImage: function () {
+
+	updateImageBufferWithRandomImageFromInternet: function (done) {
 
 		Image.fetch ('http://lorempixel.com/' + this.cellBuffer.width + '/' + this.cellBuffer.height + '/' + '?' + Math.random ())
 			 .done (this.$ (function (img) {
@@ -279,8 +281,10 @@ Life = $extends (Viewport, {
 
 				this.imageBuffer.updateFromImage (image)
 
-				this.resetCellBuffer () }))
-	},
+				done () })) },
+
+	fillWithImage: function () { this.updateImageBufferWithRandomImageFromInternet (this.$ (this.resetCellBuffer)) },
+
 	resetCellBuffer: function () {
 
 		this.cellBuffer = this.cellBuffer2
@@ -313,7 +317,7 @@ Life = $extends (Viewport, {
 			this.gl.clear (this.gl.COLOR_BUFFER_BIT)
 		}, this)
 	},
-	springDynamics: function () {
+	springDynamics: $raw (function () {
 		var zoom = this.getZoom ()
 		if (!this.isDragging) {
 			if (zoom > 0.99) {
@@ -332,8 +336,8 @@ Life = $extends (Viewport, {
 			var springForce = Math.pow (1.2, 1.0 - zoom)
 			this.updateTransform (this.transform.scale ([springForce, springForce, 1.0]))
 		}
-	},
-	updateTransform: function (newTransform) {
+	}),
+	updateTransform: $raw (function (newTransform) {
 		var viewportTransform = new Transform3D ()
 		var aspect = this.viewportWidth / this.viewportHeight
 		var bufferAspect = this.cellBuffer.width / this.cellBuffer.height
@@ -348,8 +352,8 @@ Life = $extends (Viewport, {
 		}
 		this.transform = newTransform || this.transform
 		this.screenTransform = this.transform.multiply (viewportTransform)
-	},
-	beforeDraw: function () {
+	}),
+	beforeDraw: $raw (function () {
 		if (!this.paused) {
 			if (this.shouldPaint) {
 				this.paint (true)
@@ -360,15 +364,15 @@ Life = $extends (Viewport, {
 			this.paint (false)
 		}
 		this.springDynamics ()
-	},
-	renderCells: function (callback) {
+	}),
+	renderCells: $raw (function (callback) {
 		/* backbuffering */
 		var targetBuffer = (this.cellBuffer == this.cellBuffer1 ? this.cellBuffer2 : this.cellBuffer1)
 		targetBuffer.draw (callback, this)
 		this.cellBuffer = targetBuffer
 		this.firstFrame = false
-	},
-	iterate: function () { var framesToSkip = 20
+	}),
+	iterate: $raw (function () { var framesToSkip = 20
 
 		for (var i = 0; i < framesToSkip; i++) {
 			this.renderCells (function () {
@@ -396,7 +400,7 @@ Life = $extends (Viewport, {
 			    this.square.draw ()
 			})
 		}
-	},
+	}),
 	paint: function (animate) {
 		this.paintParametricBrush (animate)
 		this.paintFrom = this.paintTo
@@ -431,7 +435,7 @@ Life = $extends (Viewport, {
 		    this.square.draw ()
 		})
 	},
-	draw: function () {
+	draw: $raw (function () {
 		this.gl.disable (this.gl.DEPTH_TEST)
 		this.drawCellsShader.use ()
 		this.drawCellsShader.attributes.position.bindBuffer (this.square)
@@ -439,7 +443,7 @@ Life = $extends (Viewport, {
 		this.drawCellsShader.uniforms.cells.bindTexture (this.cellBuffer, 0)
 		this.drawCellsShader.uniforms.rules.bindTexture (this.rulesBuffer, 1)
 		this.square.draw ()
-	},
+	}),
 	noGL: function () {
 		$('.no-webgl').modal ('show')
 	}

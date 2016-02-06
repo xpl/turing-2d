@@ -216,8 +216,6 @@ MetaShader = $prototype ({
 
 Viewport = $component ({
 
-	$disableAutoThisBoundMethods: true,
-
 	init: function () {
 
 		_.extend (this, {
@@ -241,34 +239,37 @@ Viewport = $component ({
 			this.noGL ()
 		}
 	},
-	vertexBuffer: function (cfg) {
-		return new VertexBuffer (_.extend ({ gl: this.gl }, cfg))
-	},
-	shaderProgram: function (cfg) {
-		return new ShaderProgram (_.extend ({ gl: this.gl }, cfg))
-	},
-	texture: function (cfg) {
-		return new Texture (_.extend ({ gl: this.gl }, cfg))
-	},
-	renderTexture: function (cfg) {
-		return new RenderTexture (_.extend ({ gl: this.gl }, cfg))
-	},
-	render: function () {
-		//var currentTime = new Date ().getTime ()
-		//this.FPS = 1.0 / (this.elapsedTime = (currentTime - this.lastFrameTime) / 1000.0)
-		//this.lastFrameTime = currentTime
-		this.beforeDraw ()
-		this.gl.viewport (0, 0, this.viewportWidth, this.viewportHeight)
-		this.draw ()
-		window.requestAnimationFrame ($.proxy (this.render, this), this.canvas)
-	},
-	resize: function (width, height) {
-		$(this.canvas).attr ('width', this.viewportWidth = width)
-		$(this.canvas).attr ('height', this.viewportHeight = height)
-	},
-	/* override this */
-	initGL: function () {},
-	beforeDraw: function () {},
-	draw: function () {},
-	doAnimation: function (elapsedTime) {}
+
+	$raw: {
+		
+		vertexBuffer: function (cfg) {
+			return new VertexBuffer (_.extend ({ gl: this.gl }, cfg))
+		},
+		shaderProgram: function (cfg) {
+			return new ShaderProgram (_.extend ({ gl: this.gl }, cfg))
+		},
+		texture: function (cfg) {
+			return new Texture (_.extend ({ gl: this.gl }, cfg))
+		},
+		renderTexture: function (cfg) {
+			return new RenderTexture (_.extend ({ gl: this.gl }, cfg))
+		},
+		render: function () {
+			//var currentTime = new Date ().getTime ()
+			//this.FPS = 1.0 / (this.elapsedTime = (currentTime - this.lastFrameTime) / 1000.0)
+			//this.lastFrameTime = currentTime
+			this.beforeDraw ()
+			this.gl.viewport (0, 0, this.viewportWidth, this.viewportHeight)
+			this.draw ()
+			window.requestAnimationFrame ($.proxy (this.render, this), this.canvas)
+		},
+		resize: function (width, height) {
+			$(this.canvas).attr ('width', this.viewportWidth = width)
+			$(this.canvas).attr ('height', this.viewportHeight = height)
+		},
+		/* override this */
+		initGL: function () {},
+		beforeDraw: function () {},
+		draw: function () {},
+		doAnimation: function (elapsedTime) {} }
 })
