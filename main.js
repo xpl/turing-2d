@@ -4,10 +4,25 @@
 
 var debug = false
 
-Life = _.extends (Viewport, {
-	init: function () {
+XMLHttpRequestWithCORS = $aspect (XMLHttpRequest, {
+										open: function (method, path, async) {
+											return _.last (arguments).call (this, method, (!path.contains ('cors.io') &&
+																			 			   !path.contains (window.location.host))
+																								? ('http://cors.io/?u=' + path) : path, async) } })
+
+Life = $extends (Viewport, {
+
+	initGL: function () {
+
 		_.extend (this, {
+
 			/* shaders */
+			convertColorsShader: this.shaderProgram ({
+				vertex: 'simple-vs',
+				fragment: 'convert-colors-fs',
+				attributes: ['position'],
+				uniforms: ['cells', 'rules', 'transform']
+			}),
 			randomNoiseShader: this.shaderProgram ({
 				vertex: 'cell-vs',
 				fragment: 'cell-random-noise-fs',
@@ -20,17 +35,11 @@ Life = _.extends (Viewport, {
 				attributes: ['position'],
 				uniforms: ['previousStep', 'screenSpace', 'rules', 'forkRules', 'pixelOffset', 'numStates', 'numSymbols', 'seed', 'lifeDecrease']
 			}),
-			moveTapeShader: this.shaderProgram ({
-				vertex: 'cell-vs-pixeloffset',
-				fragment: 'move-tape-fs',
-				attributes: ['position'],
-				uniforms: ['previousStep', 'screenSpace', 'pixelOffset']
-			}),
 			parametricBrushShader: this.shaderProgram ({
 				vertex: 'cell-vs-pixeloffset',
 				fragment: 'cell-brush-fs',
 				attributes: ['position'],
-				uniforms: ['cells',
+				uniforms: ['cells', 'image',
 					'brushPosition1', 'brushPosition2', 'brushSize', 'seed',
 					'pixelSpace', 'screenSpace', 'pixelOffset', 'noise', 'fill', 'animate', 'hue']
 			}),
@@ -58,20 +67,20 @@ Life = _.extends (Viewport, {
 			}),
 			/* buffers */
 			cellBuffer: null, 												// current
+			imageBuffer: this.texture 		({ width: 1024, height: 512 }),
 			cellBuffer1: this.renderTexture ({ width: 1024, height: 512 }),	// back
 			cellBuffer2: this.renderTexture ({ width: 1024, height: 512 }),	// front
 
 			/* rules */
-			rulesBuffer: this.genRandomRules (4, 4),
 			//forkRulesBufer: this.genRandomRules (4, 4),
 			activeRules: 0,
 			currentRuleset: 0,
 			/* transform matrices */
-			transform: new Transform (),
-			screenTransform: new Transform (),
+			transform: new Transform3D (),
+			screenTransform: new Transform3D (),
 			/* changeable parameters */
 			gridSize: 6,
-			numStates: 4,
+			numStates: 2,
 			numSymbols: 4,
 			scrollSpeed: 0.0,
 			brushSize: 64.0,
@@ -84,29 +93,36 @@ Life = _.extends (Viewport, {
 			firstFrame: true,
 			frameNumber: 0,
 		})
+		
+		this.rulesBuffer = this.genRandomRules (this.numStates, this.numSymbols)
+
 		this.cellBuffer = this.cellBuffer1
 		this.fillWithNothing ()
 		this.initUserInput ()
-		this.initGUI ()
-
-		$('.reset').click ()
+		this.resetWithRandomRules ()
+		this.fillWithImage ()
 	},
 	resetWithRandomRules: function () {
-		this.rulesBuffer.update (this.randomRulesData ())
-		//this.forkRulesBufer.update (this.randomRulesData ())
-		this.fillWithRandomNoise ()
+		this.resetCellBuffer ()
+		this.randomizeRules ()
 	},
-	randomRulesData: function () {
+	randomizeRules: function () {
+		this.rulesBuffer.update (this.randomRulesData ())
+	},
 
-		var data        = []
-		var texSize     = 16
-		var random      = _.times (this.numStates,
-							_.times.partial (this.numSymbols,
-								_.times.partial (4, _.random.partial (255))))
+	randomRulesData: function () {
+		return this.rulesData (_.times (this.numStates,
+									_.times.$ (this.numSymbols,
+										_.times.$ (4, _.random.$ (255)))))
+	},
+	rulesData: function (statesSymbolsRgba) {
+
+		var data    = []
+		var texSize = 16
 
 		for (var y = 0; y < texSize; y++) {
 			for (var x = 0; x < texSize; x++) {
-				data.push (random
+				data.push (statesSymbolsRgba
 					[Math.floor ((y / texSize) * this.numStates)]
 					[Math.floor ((x / texSize) * this.numSymbols)]) } }
 
@@ -118,7 +134,7 @@ Life = _.extends (Viewport, {
 		return this.texture ({
 			width: 16,
 			height: 16,
-			data: this.randomRulesData ()
+			data: (this.currentRulesData = this.randomRulesData ())
 		})
 	},
 	initUserInput: function () {
@@ -149,8 +165,10 @@ Life = _.extends (Viewport, {
 				case 50: /* 2 */ $('.ruleset-2').click (); break;
 				case 51: /* 3 */ $('.ruleset-3').click (); break;
 				case 78: /* n */ this.setBrushType ('noise'); break;
-				case 32: /* space */ this.paused = !this.paused; break;
-				case 27: /* esc */ this.resetWithRandomRules (); $('.controls .scroll-speed').slider ('value', this.scrollSpeed = 0); break;
+				//case 32: /* space */ this.paused = !this.paused; break;
+				case 9 : /*	tab */ this.resetWithRandomRules ();  e.preventDefault (); break;
+				case 13 : /* enter */ this.randomizeRules ();  e.preventDefault (); break;
+				case 27: /* esc */ this.fillWithImage ();  e.preventDefault (); break;// $('.controls .scroll-speed').slider ('value', this.scrollSpeed = 0); break;
 			}
 		}, this))
 		$(window).resize ($.proxy (function () {
@@ -160,7 +178,7 @@ Life = _.extends (Viewport, {
 			if (width >= this.cellBuffer.width && height >= this.cellBuffer.height) {
 				this.resize (this.cellBuffer.width, this.cellBuffer.height)
 			} else {
-				this.resize (width, height)
+					this.resize (width, height)
 			}
 		}, this)).resize ()
 	},
@@ -169,82 +187,6 @@ Life = _.extends (Viewport, {
 		var g = Math.max (0.0, Math.min (1.0, 2.0 - Math.abs (H * 6.0 - 2.0)))
 		var b = Math.max (0.0, Math.min (1.0, 2.0 - Math.abs (H * 6.0 - 4.0)))
 		return 'rgba(' + Math.round (r * 255) + ',' + Math.round (g * 255) + ',' + Math.round (b * 255) + ', 1.0)'
-	},
-	initGUI: function () {
-		this
-			.slider ('.controls .scroll-speed', { min: 0, max: 6, value: 1 }, function (value) {
-				this.scrollSpeed = value*2
-			})
-			.slider ('.controls .brush-scale', { min: 0, max: 10, value: 4, step: 0.1 }, function (value, slider) {
-				this.brushSize = Math.pow (2, value)
-			})
-			.slider ('.controls .tolerance', { min: 0, max: 100, value: 15, step: 1 }, function (value, slider) {
-				this.tolerance = value / 100.0;
-			})
-			.slider ('.controls .friends', { min: 0, max: 8, value: 4, step: 1 }, function (value, slider) {
-				this.friends = value;
-			})
-			.slider ('.controls .brush-color', { min: 0, max: 100, value: 0, step: 1 }, function (value, slider) {
-				this.brushColor = value / 100.0;
-				slider.find ('a').attr ('style', value > 0 ? 'background:' + this.hueToCSSColor (this.brushColor) + ' !important;' : '')
-			})
-			.slider ('.controls .grid', { min: 4, max: 11, value: this.gridSize, step: 1 }, function (value, slider) {
-				this.gridSize = value
-				this.fillWithRandomNoise ()
-			})
-			.slider ('.controls .states', { min: 1, max: 16, value: this.numStates, step: 1 }, function (value, slider) {
-				this.rulesBuffer = this.genRandomRules (this.numStates = value, this.numSymbols)
-				//this.forkRulesBufer = this.genRandomRules (this.numStates = value, this.numSymbols)
-			})
-			.slider ('.controls .symbols', { min: 1, max: 16, value: this.numSymbols, step: 1 }, function (value, slider) {
-				this.rulesBuffer = this.genRandomRules (this.numStates, this.numSymbols = value)
-				//this.forkRulesBufer = this.genRandomRules (this.numStates = value, this.numSymbols)
-			})
-		$('.reset')
-			.click ($.proxy (function (e) {
-				this.reset ($(e.target).attr ('data-reset-with'))
-				$('.controls .scroll-speed').slider ('value', this.scrollSpeed = 0)
-			}, this))
-		$('.btn-pause')
-			.click ($.proxy (function (e) {
-				this.paused = !this.paused
-			}, this))
-		$('.btn-scroll')
-			.click ($.proxy (function (e) {
-				this.enableScroll (!(this.scrollSpeed > 0.0))
-			}, this))
-		$('.btn')
-			.tooltip ({
-				placement: 'bottom',
-				trigger: 'hover'
-			})
-		$('.btn-info').click (function () {
-			$('.modal.info').modal ('show')
-		})
-		/*$('.btn-rules').click (function () {
-			$('.rules-editor').toggle ()
-		})
-		$('.multiple-rules-toggle').click ($.proxy (function () {
-			this.activeRules = this.activeRules > 0 ? 0 : 3;
-			$('.multiple-rules-toggle').html ('multiple rules: ' + (this.activeRules > 0 ? '<strong>on</strong>' : 'off'))
-			//$('.ruleset-switch .btn').toggleClass ('disabled', !(this.activeRules > 0))
-			//$('.ruleset-1').click ()
-		}, this))
-		$('.ruleset-switch .btn').each ($.proxy (function (index, btn) {
-			$(btn).click ($.proxy (function () {
-				this.setCurrentRuleset (index)
-			}, this))
-		}, this))
-		for (var i = 0; i <= 8; i++) {
-			$('.rules-editor .rules').append (this.ruleUI (i))
-		}
-		$('.rules-editor .presets .btn').each ($.proxy (function (index, btn) {
-			$(btn).click ($.proxy (function () {
-				this.setRules (_.map ($(btn).attr ('data-rules').split (' '), function (i) {
-					return parseInt (i)
-				}))
-			}, this))
-		}, this))*/
 	},
 	setCurrentRuleset: function (i) {
 		this.currentRuleset = i
@@ -259,48 +201,17 @@ Life = _.extends (Viewport, {
 		}, this))
 		//this.rulesBuffer.update (this.genRulesBufferData (this.rules))
 	},
-	/*ruleUI: function (at) {
-		var rule = $('<div class="rule">').append ($('<span class="count">' + at + ':</span>'))
-		var buttons = $('<div class="btn-group" data-toggle="buttons-radio">').appendTo (rule)
-		var die, keep, born
-		var updateUI = rule.get (0).updateUI = function (value) {
-			die.attr ('class', 'btn ' + (value == 0 ? 'active btn-danger' : 'btn-inverse'))
-			keep.attr ('class', 'btn ' + (value == 1 ? 'active btn-info' : 'btn-inverse'))
-			born.attr ('class', 'btn ' + (value == 2 ? 'active btn-success' : 'btn-inverse'))
-		}
-		var commit = $.proxy (function (value) {
-			this.rules[this.currentRuleset * 16 + at] = value
-			//this.rulesBuffer.update (this.genRulesBufferData (this.rules))
-		}, this)
-		die = $('<button class="btn">die</button>').click (function () { updateUI (0); commit (0); }).appendTo (buttons)
-		keep = $('<button class="btn">keep</button>').click (function () { updateUI (1); commit (1); }).appendTo (buttons)
-		born = $('<button class="btn">born</button>').click (function () { updateUI (2); commit (2); }).appendTo (buttons)
-		updateUI (this.rules[at])
-		return rule
-	},*/
-	slider: function (selector, cfg, handler) {
-		var el = $(selector)
-		el.slider (cfg)
-			.bind ('slide', $.proxy (function (e, ui) {
-				handler.call (this, ui.value, el)
-				el.find ('.ui-slider-handle').blur () /* do not want focus */
-			}, this))
-			.bind ('change', $.proxy (function (e, ui) {
-				/* FIXME: change event does not fire ?? */
-				handler.call (this, ui.value, el)
-			}, this))
-		return this
-	},
 	resizeBuffers: function (w, h) {
 		this.cellBuffer1.resize (w, h)
 		this.cellBuffer2.resize (w, h)
 		$(window).resize ()
 		this.reset ('noise')
-		this.updateTransform (new Transform ())
+		this.updateTransform (new Transform3D ())
 	},
 	reset: function (type) {
 		if (type == 'noise') {
-			this.fillWithRandomNoise ()
+			this.fillWithImage ()
+			//this.fillWithRandomNoise ()
 		} else {
 			this.fillWithNothing ()
 		}
@@ -316,7 +227,7 @@ Life = _.extends (Viewport, {
 		var zoom = Math.pow (1.03, e.originalEvent.wheelDelta ?
 			(e.originalEvent.wheelDelta / (isMac ? 360.0 : 36.0)) : -e.originalEvent.detail * (isMac ? 0.5 : 1.0))
 		var origin = this.transform.applyInverse (this.eventPoint (e))
-		this.updateTransform (this.transform.multiply (new Transform ()
+		this.updateTransform (this.transform.multiply (new Transform3D ()
 			.translate (origin)
 			.scale ([zoom, zoom, 1.0])
 			.translate ([-origin[0], -origin[1], 0.0])))
@@ -356,6 +267,39 @@ Life = _.extends (Viewport, {
 			$(window).unbind ('mouseup')
 			$(window).unbind ('mousemove')
 		}, this))
+	},
+	fillWithImage: function () {
+
+		Image.fetch ('http://lorempixel.com/' + this.cellBuffer.width + '/' + this.cellBuffer.height + '/' + '?' + Math.random ())
+			 .done (this.$ (function (img) {
+
+				var canvas = document.createElement('canvas')
+			    var ctx = canvas.getContext('2d')
+
+			    canvas.width  = this.cellBuffer1.width
+			    canvas.height = this.cellBuffer1.height
+
+			    ctx.drawImage (img, 0, 0, canvas.width, canvas.height)
+
+			    var image = new Image()
+					image.src = canvas.toDataURL()
+
+				this.imageBuffer.updateFromImage (image)
+
+				this.resetCellBuffer () }))
+	},
+	resetCellBuffer: function () {
+
+		this.cellBuffer = this.cellBuffer2
+		this.cellBuffer.draw (function () {
+			this.convertColorsShader.use ()
+			this.convertColorsShader.attributes.position.bindBuffer (this.square)
+			this.convertColorsShader.uniforms.transform.setMatrix (this.screenTransform)
+			this.convertColorsShader.uniforms.cells.bindTexture (this.imageBuffer, 0)
+			this.convertColorsShader.uniforms.rules.bindTexture (this.rulesBuffer, 1)
+			this.square.draw () }, this)
+
+				this.firstFrame = true
 	},
 	fillWithRandomNoise: function () {
 		this.cellBuffer.draw (function () {
@@ -397,7 +341,7 @@ Life = _.extends (Viewport, {
 		}
 	},
 	updateTransform: function (newTransform) {
-		var viewportTransform = new Transform ()
+		var viewportTransform = new Transform3D ()
 		var aspect = this.viewportWidth / this.viewportHeight
 		var bufferAspect = this.cellBuffer.width / this.cellBuffer.height
 		if (this.cellBuffer.width < this.viewportWidth && this.cellBuffer.height < this.viewportHeight) {
@@ -431,8 +375,9 @@ Life = _.extends (Viewport, {
 		this.cellBuffer = targetBuffer
 		this.firstFrame = false
 	},
-	iterate: function () {
-		for (var i = 0; i < 20; i++) {
+	iterate: function () { var framesToSkip = 20
+
+		for (var i = 0; i < framesToSkip; i++) {
 			this.renderCells (function () {
 				this.updateProgramShader.use ()
 				this.updateProgramShader.attributes.position.bindBuffer (this.square)
@@ -444,7 +389,7 @@ Life = _.extends (Viewport, {
 				//this.updateProgramShader.uniforms.lifeDecrease.set1f (1.0 / 255.0)
 
 				this.frameNumber++
-				if (this.frameNumber > 20) {
+				if (this.frameNumber > framesToSkip) {
 					this.updateProgramShader.uniforms.lifeDecrease.set1f (1.0 / 255.0)
 					this.frameNumber = 0
 				} else {
@@ -457,16 +402,6 @@ Life = _.extends (Viewport, {
 					0.5 / this.cellBuffer.height)
 			    this.square.draw ()
 			})
-			/*this.renderCells (function () {
-				this.moveTapeShader.use ()
-				this.moveTapeShader.attributes.position.bindBuffer (this.square)
-				this.moveTapeShader.uniforms.previousStep.bindTexture (this.cellBuffer, 0)
-				this.moveTapeShader.uniforms.screenSpace.set2f (1.0 / this.cellBuffer.width, 1.0 / this.cellBuffer.height)
-				this.moveTapeShader.uniforms.pixelOffset.set2f (
-					0.0 / this.cellBuffer.width,
-					-(0.5 + this.scrollSpeed * !this.firstFrame) / this.cellBuffer.height)
-			    this.square.draw ()
-			})*/
 		}
 	},
 	paint: function (animate) {
@@ -476,7 +411,7 @@ Life = _.extends (Viewport, {
 	},
 	paintParametricBrush: function (animate) {
 		this.renderCells (function () {
-			var pixelSpace = new Transform ()
+			var pixelSpace = new Transform3D ()
 				.scale ([this.viewportWidth, this.viewportHeight, 1.0])
 				.multiply (this.screenTransform)
 			var texelSize =
@@ -485,6 +420,7 @@ Life = _.extends (Viewport, {
 			this.parametricBrushShader.use ()
 			this.parametricBrushShader.attributes.position.bindBuffer (this.square)
 			this.parametricBrushShader.uniforms.cells.bindTexture (this.cellBuffer, 0)
+			this.parametricBrushShader.uniforms.image.bindTexture (this.imageBuffer, 1)
 			this.parametricBrushShader.uniforms.brushPosition1.set2fv (this.screenTransform.applyInverse (this.paintFrom))
 			this.parametricBrushShader.uniforms.brushPosition2.set2fv (this.screenTransform.applyInverse (this.paintTo))
 			this.parametricBrushShader.uniforms.pixelSpace.setMatrix (pixelSpace)
@@ -517,7 +453,7 @@ Life = _.extends (Viewport, {
 })
 
 $(document).ready (function () {
-	var life = new Life ({
+	life = new Life ({
 		canvas: $('.viewport').get (0)
 	})
 })

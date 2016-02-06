@@ -1,0 +1,12 @@
+[submodule "node_modules/underscore"]
+	path = node_modules/underscore
+	url = https://github.com/jashkenas/underscore
+[submodule "node_modules/jquery"]
+	path = node_modules/jquery
+	url = https://github.com/jquery/jquery
+[submodule "node_modules/useless"]
+	path = node_modules/useless
+	url = https://github.com/xpl/useless
+[submodule "node_modules/bootstrap"]
+	path = node_modules/bootstrap
+	url = https://github.com/twbs/bootstrap

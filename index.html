@@ -12,18 +12,25 @@
 		<meta property="fb:admins" content="1174148385" />
 		<link rel="image_src" href="http://xpl.github.com/expression/preview.jpg" />
 		<link rel="stylesheet" type="text/css" href="jquery-ui-1.8.16.custom.css" />
-		<link rel="stylesheet" type="text/css" href="bootstrap/css/bootstrap.min.css" />
+		<link rel="stylesheet" type="text/css" href="node_modules/bootstrap/dist/css/bootstrap.min.css" />
 		<link rel="stylesheet" type="text/css" href="main.css" />
-		<script src="jquery-1.8.2.min.js"></script>
-		<script src="jquery-ui-1.9.0.custom.min.js"></script>
+
+		<script src="https://www.google.com/jsapi"></script>
+		<script src="node_modules/jquery/dist/jquery.min.js"></script>
 		<script src="jquery.mousewheel.js"></script>
-		<script src="underscore-min.js"></script>
-		<script src="bootstrap/js/bootstrap.min.js"></script>
-		<script src="useless.js"></script>
+		<script src="node_modules/underscore/underscore-min.js"></script>
+		<script src="node_modules/bootstrap/dist/js/bootstrap.min.js"></script>
+		<script src="node_modules/useless/build/useless.micro.js"></script>
+		<script src="node_modules/useless/build/useless.devtools.js"></script>
+		<script src="node_modules/useless/base/Rx.js"></script>
+		<script src="node_modules/useless/base/AOP.js"></script>
+		<script src="dom/node+.js"></script>
+		<script src="dom/reference_holder.js"></script>
 		<script src="gl-matrix-min.js"></script>
 		<script src="util.js"></script>
 		<script src="3d.js"></script>
 		<script src="main.js"></script>
+
 		<!-- shaders -->
 		<script id="cell-random-noise-fs" type="x-shader/x-fragment">
 			#version 100
@@ -112,12 +119,37 @@
 		    float dotdot (vec2 x) {
 		    	return dot (x, x);
 		    }
-		    vec2 moveDirection (float action) {
+
+												/*			-1, 1	0, 1    1, 1
+
+															-1, 0	 ++     1, 0
+
+															-1,-1   0,-1,   1,-1		*/
+
+		    vec2 moveDirection8 (float action) {
 		    	return
-		    		(action > 0.75 ? vec2 ( -1.0,  0.0) :
-		    		(action > 0.50 ? vec2 (  1.0,  0.0) :
-		    		(action > 0.25 ? vec2 (  0.0, -1.0) :
-		    			             vec2 (  0.0,  1.0))));
+		    		(action > 0.875 ? vec2 ( -1, 1) :
+		    		(action > 0.75  ? vec2 (  0.0,  1.0) :
+		    		(action > 0.625 ? vec2 (  1,  1) :
+		    		(action > 0.5   ? vec2 (  1.0,  0.0) :
+		    		(action > 0.375 ? vec2 (  1, -1) :
+		    		(action > 0.25  ? vec2 (  0.0, -1.0) :
+		    		(action > 0.125 ? vec2 ( -1, -1) :
+		    						  vec2 ( -1.0,  0.0)))))))); }
+
+		    vec2 moveDirectionX (float action) {
+		    	return
+		    		(action > 0.75 ? vec2 ( -1,  1) :
+		    		(action > 0.50 ? vec2 (  1,  1) :
+		    		(action > 0.25 ? vec2 (  1, -1) :
+		    		 				 vec2 ( -1, -1)))); }
+
+		    vec2 moveDirectionQ (float action) {
+		    	return
+		    		(action > 0.74 ? vec2 (  0.0, -1.0) :
+		    		(action > 0.49 ? vec2 (  1.0,  0.0) :
+		    		(action > 0.24 ? vec2 (  0.0,  1.0) :
+		    			             vec2 ( -1.0,  0.0))));
 		    }
 
 		    vec4 getCommand (vec4 cell) {
@@ -143,67 +175,59 @@
 
 		    		/* If cell wants to move at current fragment position..
 		    		 */
-		    		if (dotdot (moveDirection (moveTape) + address) < 0.01) {
+		    		if (dotdot (moveDirectionX (moveTape) + address) < 0.01) {
 		    			return vec4 (1.0, nextState, current.z, 1.0); }
 
 		    	}
 		    	
 		    	return current;
-		    }
+		    }												
 
-		    vec4 step (vec4 cell) { vec4 command = getCommand (cell);
+		    									/*			--------------------->  	*/
+
+												/*			-1, 1	0, 1    1, 1
+
+															-1, 0	 ++     1, 0
+
+															-1,-1   0,-1,   1,-1		*/
+
+		    vec4 step8 (vec4 cell) { vec4 command = getCommand (cell);
+		    	return
+			    	convolute (vec2 (-1, 1),
+			    	convolute (vec2 ( 0.0,  1.0),
+			    	convolute (vec2 ( 1,  1),
+			    	convolute (vec2 ( 1.0,  0.0),
+			    	convolute (vec2 ( 1, -1),
+			    	convolute (vec2 ( 0.0, -1.0),
+			    	convolute (vec2 (-1, -1),
+			    	convolute (vec2 (-1.0,  0.0),
+			    		(cell.x > 0.95) ?
+			    			vec4 (0.94, cell.y, command.y, command.w) :
+			    			vec4 (decreaseLife (cell.x), cell.y ,cell.z, cell.w))))))))); }
+
+		    vec4 stepX (vec4 cell) { vec4 command = getCommand (cell);
+		    	return
+			    	convolute (vec2 (-1,  1),
+			    	convolute (vec2 ( 1,  1),
+			    	convolute (vec2 ( 1, -1),
+			    	convolute (vec2 (-1, -1),
+			    		(cell.x > 0.95) ?
+			    			vec4 (0.94, cell.y, command.y, command.w) :
+			    			vec4 (decreaseLife (cell.x), cell.y ,cell.z, cell.w))))); }
+
+		    vec4 stepQ (vec4 cell) { vec4 command = getCommand (cell);
 		    	return
 			    	convolute (vec2 ( 0.0, -1.0),
 			    	convolute (vec2 ( 1.0,  0.0),
 			    	convolute (vec2 ( 0.0,  1.0),
 			    	convolute (vec2 (-1.0,  0.0),
 			    		(cell.x > 0.95) ?
-			    			vec4 (0.94, cell.y, command.y /* write symbol */, command.w) :
+			    			vec4 (0.94, cell.y, command.y, // write symbol
+			    								command.w) :
 			    			vec4 (decreaseLife (cell.x), cell.y ,cell.z, cell.w))))); }
 
 		    void main (void) {
-		    	gl_FragColor = step (pixelAt (vec2 (0.0, 0.0)));
-		    	//gl_FragColor = updateProgram (moveTape (pixelAt (vec2 (0.0, 0.0))));
-		    	//gl_FragColor = updateProgram (pixelAt (vec2 (0.0, 0.0)));
-		    }
-		</script>
-		<script id="move-tape-fs" type="x-shader/x-fragment">
-			#version 100
-		    precision highp float;
-		    varying vec2 texCoord;
-		    uniform sampler2D previousStep;
-		    uniform vec2 screenSpace;
-		    vec4 pixelAt (vec2 offset) {
-		    	return texture2D (previousStep, texCoord + offset * screenSpace);
-		    }
-		    float dotdot (vec2 x) {
-		    	return dot (x, x);
-		    }
-		    vec2 actionDirection (float packedAction) {
-		    	float action = packedAction * 4.0;
-		    	return
-		    		(action > 3.0 ? vec2 ( 0.0, -1.0) :
-		    		(action > 2.0 ? vec2 ( 1.0,  0.0) :
-		    		(action > 1.0 ? vec2 ( 0.0,  1.0) : vec2 ( 0.0, -1.0))));
-		    }
-		    vec4 test (vec2 offset, vec4 other) {
-		    	vec4 cell = pixelAt (offset);
-		    	if (cell.x /* is cursor */ > 0.95 && /* pointing here */ dotdot (actionDirection (cell.w) + offset) < 0.1) {
-		    		return vec4 (1.0, cell.y, other.z, cell.w);
-		    	} else {
-		    		return other;
-		    	}
-		    }
-		    vec4 step () {
-		    	vec4 cell = pixelAt (vec2 (0.0, 0.0));
-		    	return
-			    	test (vec2 ( 0.0, -1.0),
-			    	test (vec2 ( 1.0,  0.0),
-			    	test (vec2 ( 0.0,  1.0),
-			    	test (vec2 (-1.0,  0.0), vec4 (cell.x > 0.95 ? 0.9 : cell.x, cell.y, cell.z, cell.w)))));
-		    }
-		    void main (void) {
-		    	gl_FragColor = step ();
+		    	gl_FragColor = stepX (pixelAt (vec2 (0.0, 0.0)));
 		    }
 		</script>
 		<script id="cell-brush-fs" type="x-shader/x-fragment">
@@ -212,6 +236,7 @@
 		    varying vec2 fragmentPosition;
 		    varying vec2 texCoord;
 		    uniform sampler2D cells;
+		    uniform sampler2D image;
 		    uniform vec2 brushPosition1;
 		    uniform vec2 brushPosition2;
 		    uniform float brushSize;
@@ -238,23 +263,27 @@
 				vec2 projection = v + t * (w - v);
 				return dotdot (p - projection);
 			}
-			vec4 pixelAt (vec2 offset) {
-		    	return texture2D (cells, texCoord + offset * screenSpace);
+			vec4 pixelAt (in sampler2D tex, vec2 offset) {
+		    	return texture2D (tex, texCoord + offset * screenSpace);
 		    }
 		    void main (void) {
 		    	if (distToSegmentSquared (
 		    		(vec4(brushPosition1,1,1)*pixelSpace).xy,
 		    		(vec4(brushPosition2,1,1)*pixelSpace).xy,
 		    		(vec4(fragmentPosition,1,1)*pixelSpace).xy) < brushSize * brushSize) {
-		    		float gridSize = 64.0;
-		    		float noise = rand (seed);
-		    		vec2 grid = fract (fragmentPosition / (screenSpace * gridSize));
-		    		float thresh = (gridSize - 1.1) / gridSize;
-		    		float alive = fill * (grid.x > thresh && grid.y > thresh ? 1.0 : 0.0);
-		    		float state = rand (seed);
-		    		gl_FragColor = vec4 (alive, state, rand (seed + 0.2), rand (seed + 0.5));
+
+			    	/*	float gridSize = 64.0;
+			    		float noise = rand (seed);
+			    		vec2 grid = fract (fragmentPosition / (screenSpace * gridSize));
+			    		float thresh = (gridSize - 1.1) / gridSize;
+			    		float alive = fill * (grid.x > thresh && grid.y > thresh ? 1.0 : 0.0);
+			    		float state = rand (seed);
+			    		gl_FragColor = vec4 (alive, state, rand (seed + 0.2), rand (seed + 0.5));*/
+
+			    	gl_FragColor = pixelAt (image, vec2 (0, 0));
+
 		    	} else {
-		    		gl_FragColor = pixelAt (vec2 (0,  0));
+		    		gl_FragColor = pixelAt (cells, vec2 (0, 0));
 		    	}
 		    }
 		</script>
@@ -301,6 +330,7 @@
 				float C = (1.0 - abs(2.0 * l - 1.0)) * s;
 				return (RGB - 0.5) * C + l;
 			}
+
 		    void main (void) {
 		    	vec4 cell = texture2D (cells, texCoord);
 		    	/*float colorOffset = sin(cell.z*pi*6.0);
@@ -318,7 +348,158 @@
 
 				//gl_FragColor = vec4 (texture2D (rules, texCoord).xyz, 1);
 
-				gl_FragColor = vec4 (hsl (fract (state + symbol + action), state, cursor), 1.0);
+				gl_FragColor = vec4 (hsl (fract (state * symbol + action), state, cursor), 1.0);
+		    }
+		</script>
+		<script id="downsample-cells-fs" type="x-shader/x-fragment">
+			#version 100
+		    precision highp float;
+		    varying vec2 texCoord;
+		    uniform sampler2D source;
+		    uniform vec2 screenSpace;
+		    uniform vec2 t1, t2;
+		    float clerp (float b, float a, float delta) {
+			    float distance = a - b;
+			    float absDistance = abs (distance);
+			    if (absDistance > 0.5) {
+			        distance = sign (distance) * (absDistance - 1.0);
+			    }
+			    return fract (b + distance * delta);
+			}
+			/*
+			if (a.z > 0.5) {
+		    		return b < 0.0 ? a.w : clerp (a.w, b);
+		    	} else {
+		    		return b;
+		    	}*/
+		    vec4 blend (vec4 a, vec4 b) {
+		    	float sum = a.z + b.z;
+		    	return vec4 (0.0, 0.0, sum, a.z > 0.1 ? (b.w < 0.0 ? a.w : clerp (a.w, b.w, b.w / sum)) : b.w);
+		    }
+		    vec4 sample (float x, float y) {
+		    	return texture2D (source, (texCoord - screenSpace * vec2 (1.0)) + screenSpace * (vec2 (x, y) - vec2 (1.0)));
+		    }
+		    void main (void) {
+		    	vec4 cell1  = sample (0.0, 0.0), cell2  = sample (1.0, 0.0), cell3  = sample (2.0, 0.0), cell4  = sample (3.0, 0.0);
+		    	vec4 cell5  = sample (0.0, 1.0), cell6  = sample (1.0, 1.0), cell7  = sample (2.0, 1.0), cell8  = sample (3.0, 1.0);
+		    	vec4 cell9  = sample (0.0, 2.0), cell10 = sample (1.0, 2.0), cell11 = sample (2.0, 2.0), cell12 = sample (3.0, 2.0);
+		    	vec4 cell13 = sample (0.0, 3.0), cell14 = sample (1.0, 3.0), cell15 = sample (2.0, 3.0), cell16 = sample (3.0, 3.0);
+
+		    	vec4 sum =
+		    		blend (cell1, blend (cell2, blend (cell3, blend (cell4,
+		    		blend (cell5, blend (cell6, blend (cell7, blend (cell8,
+		    		blend (cell9, blend (cell10, blend (cell11, blend (cell12,
+		    		blend (cell13, blend (cell14, blend (cell15, blend (cell16, vec4 (0.0, 0.0, 0.0, -1.0)))))))))))))))));
+
+		    	gl_FragColor = vec4 (0.0, 0.0, sum.z / 16.0, sum.w);
+		    }
+		</script>
+		<script id="convert-colors-fs" type="x-shader/x-fragment">
+			#version 100
+		    precision mediump float;
+		    varying vec2 texCoord;
+		    uniform sampler2D cells, rules;
+
+			vec3 rgb2hsl (vec3 v) {
+			    float maxx = max (max (v.r, v.g), v.b), minn = min (min (v.r, v.g), v.b);
+			    float h, s, l = (maxx + minn) * 0.5;
+
+			    if (abs (maxx - minn) < 0.001) {
+			        return vec3 (0.0, 0.0, maxx); }
+
+			    else {
+			        float d = maxx - minn;
+			        s = (l > 0.5) ? d / (2.0 - maxx - minn) : d / (maxx + minn);
+
+			             if (abs (maxx - v.r) < 0.001) { h = (v.g - v.b) / d + (v.g < v.b ? 6.0 : 0.0); }
+			        else if (abs (maxx - v.g) < 0.001) { h = (v.b - v.r) / d + 2.0; }
+			        else if (abs (maxx - v.b) < 0.001) { h = (v.r - v.g) / d + 4.0; }
+
+			        return vec3 (h / 6.0, s, l);
+			    }
+			}
+
+			uniform sampler2D tex;
+
+			float threshold(in float thr1, in float thr2 , in float val) {
+				if (val < thr1) {return 0.0;}
+				if (val > thr2) {return 1.0;}
+				return val;
+			}
+
+			// averaged pixel intensity from 3 color channels
+			float avg_intensity(in vec4 pix) { return (pix.r + pix.g + pix.b)/3.; }
+
+			vec4 get_pixel(in vec2 coords, in float dx, in float dy) { return texture2D(cells,coords + vec2(dx, dy)); }
+
+			// returns pixel color
+			float IsEdge(in vec2 coords){
+			  float dxtex = 1.0 / 512.0 /*image width*/;
+			  float dytex = 1.0 / 512.0 /*image height*/;
+			  float pix[9];
+			  int k = -1;
+			  float delta;
+
+			  pix[0] = avg_intensity(get_pixel(coords,float(-1)*dxtex,
+			                                          float(-1)*dytex));
+
+			  pix[1] = avg_intensity(get_pixel(coords,float(-1)*dxtex,
+			                                          float( 0)*dytex));
+
+			  pix[2] = avg_intensity(get_pixel(coords,float(-1)*dxtex,
+			                                          float( 1)*dytex));
+
+			  pix[3] = avg_intensity(get_pixel(coords,float( 0)*dxtex,
+			                                          float(-1)*dytex));
+
+			  pix[4] = avg_intensity(get_pixel(coords,float( 0)*dxtex,
+			                                          float( 0)*dytex));
+
+			  pix[5] = avg_intensity(get_pixel(coords,float( 0)*dxtex,
+			                                          float( 1)*dytex));
+
+			  pix[6] = avg_intensity(get_pixel(coords,float( 1)*dxtex,
+			                                          float(-1)*dytex));
+
+			  pix[7] = avg_intensity(get_pixel(coords,float( 1)*dxtex,
+			                                          float( 0)*dytex));
+
+			  pix[8] = avg_intensity(get_pixel(coords,float( 1)*dxtex,
+			                                          float( 1)*dytex));
+
+			  // average color differences around neighboring pixels
+			  delta = (abs(pix[1]-pix[7])+
+			          abs(pix[5]-pix[3]) +
+			          abs(pix[0]-pix[8])+
+			          abs(pix[2]-pix[6])
+			           )/4.;
+
+			  return threshold(0.25,0.4,clamp(1.8*delta,0.0,1.0));
+			}
+
+		    void main (void) {
+		    	vec4 cell = texture2D (cells, texCoord);
+
+				float cursor = cell.x;
+		    	float state  = cell.y;
+		    	float symbol = cell.z;
+		    	float action = cell.w;
+
+				vec3 hsl = rgb2hsl (cell.xyz);
+
+				//gl_FragColor = vec4 (hsl (fract (state * symbol + action), state, cursor), 1.0);
+
+//        out.x 				 = hsl.z
+//        out.y 				 = hsl.y
+// fract (out.y * out.z + out.w) = hsl.x
+
+// out.y * out.z = hls.x - out.w
+// out.z = (hsl.x - out.w) / out.y
+// out.z = (hsl.x - out.w) / hsl.y
+
+			  	float edge = IsEdge(texCoord.xy);
+
+				gl_FragColor = vec4 (pow (cell.xyzw, vec4 (edge)));//vec4 (hsl.x, hsl.y, hsl.z, 1.0);
 		    }
 		</script>
 		<script id="downsample-cells-fs" type="x-shader/x-fragment">
@@ -377,107 +558,12 @@
 		</script>
 	</head>
 	<body>
-		<div class="bar controls">
-			<button class="btn btn-inverse btn-info"><i class="icon-info-sign icon-white"></i></button>
-			<button class="btn btn-inverse btn-pause" title="hotkey: <strong>space</strong>">
-				<i class="icon-pause icon-white"></i>pause
-			</button>
-			<span class="brush-settings round">
-				<span class="control-label" style="margin-right: 4px;">brush</span>
-				<div class="brush-scale slider"></div>
-				<span class="control-label" style="margin-right: 4px;">color</span>
-				<div class="brush-color slider"></div>
-			</span>
-			<span class="control-label">grid</span><div class="grid slider"></div>
-			<span class="control-label">symbols</span><div class="symbols slider"></div>
-			<span class="control-label">states</span><div class="states slider"></div>
-			<div class="btn-group">
-				<button class="btn btn-inverse reset" title="hotkey: <strong>escape</strong>">reset</button>
-				<button class="btn btn-inverse dropdown-toggle" data-toggle="dropdown" href="javascript:{}">
-					<span class="caret"></span>
-				</button>
-				<ul class="dropdown-menu">
-					<li><a href="javascript:{}" class="reset" data-reset-with="nothing">emptiness</a></li>
-					<li><a href="javascript:{}" class="reset" data-reset-with="noise">random noise</a></li>
-				</ul>
-			</div>
-			<div class="btn-group" style="margin-left: 0;">
-				<button class="btn btn-inverse btn-rules yes dropdown-toggle">
-					<i class="icon-pencil icon-white"></i>rules
-					<span class="caret"></span>
-				</button>
-				<div class="rules-editor pull-right hide">
-					<h6>select</h6>
-					<button class="btn preset multiple-rules-toggle btn-inverse">multiple rules: off</button>
-					<div class="btn-group ruleset-switch" data-toggle="buttons-radio">
-						<button class="btn btn-inverse ruleset-1 active">#1</button>
-						<button class="btn btn-inverse ruleset-2">#2</button>
-						<button class="btn btn-inverse ruleset-3">#3</button>
-					</div>
-					<h6>rules</h6>
-					<div class="rules">
-					</div>
-					<h6>presets</h6>
-					<div class="presets">
-						<button class="btn preset btn-inverse" data-rules="0 0 1 2 0 0 0 0 0">Conway classic</button>
-						<button class="btn preset btn-inverse" data-rules="0 0 1 2 0 0 0 1 0">default</button>
-						<button class="btn preset btn-inverse" data-rules="0 0 1 2 0 0 1 1 0">breeder 2</button>
-						<button class="btn preset btn-inverse" data-rules="1 0 2 0 1 0 0 1 0">thermal sensor</button>
-					</div>
-				</div>
-			</div>
-		</div>
 		<div class="viewport-container">
 			<canvas class="viewport"></canvas>
-			<!--<div class="draw-prompt">
-				<h1>draw something.</h1>
-				<div class="hint">(use scroll to zoom, right mouse to pan, hold shift to erase)</div>
-			</div>-->
-		</div>
-		<div class="modal no-webgl hide fade" role="dialog">
-			<div class="modal-header">
-				<h3>Whoopsy-daisy, no WebGL support detected</h3>
-			</div>
-			<div class="modal-body">
-				<p>WebGL enables nice and smooth hardware-accelerated graphics for web applications. It is now supported in latest versions of Google Chrome, Firefox or Safari (you may want to update your browser). Not sure about IE.</p>
-				<p style="text-align: center;">
-					<a href="http://google.com/chrome"><img src="chrome-logo.jpg" width="64" height="64"></a>
-					<a href="http://www.mozilla.org/en-US/firefox/"><img src="firefox-logo.jpg" width="64" height="64"></a>
-					<a href="http://www.apple.com/safari/"><img src="safari-logo.jpg" width="64" height="64"></a>
-				</p>
-				<p>If you're in <strong>Safari</strong>, go to <strong>Preferences</strong>, then to <strong>Advanced</strong> and select <strong>Show Develop menu in menu bar</strong> checkbox at the bottom. Now you can open <strong>Develop</strong> in menu bar and select <strong>Enable WebGL</strong>. You're ready to go!</p>
-				<p><strong>Firefox</strong> users (in case if WebGL is somehow disabled by default) could go to <strong>about:config</strong> (type it in the address bar) and then set <strong>webgl.force-enabled</strong> parameter to <strong>true</strong>.</p>
-			</div>
-			<div class="modal-footer">
-				<a href="http://www.khronos.org/webgl/wiki/Main_Page" class="btn">More info</a>
+			<div class="draw-prompt">
+				<h1>The Toroidal Turing Machine</h1>
+				<div class="hint"><em>Esc</em> to reload, <em>Tab</em> to reset, <em>Enter</em> to reprogram</div>
 			</div>
 		</div>
-		<div class="modal info hide fade" role="dialog">
-			<div class="modal-header">
-				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
-				<h3>About</h3>
-			</div>
-			<div class="modal-body">
-				<p>This application is implemented in hardware-accelerated WebGL and is based on a famous cellular automaton known as Conway's Game of Life. Read <a href="http://en.wikipedia.org/wiki/Conway's_Game_of_Life">Wikipedia article</a> about it.</p>
-				<p>Source code available at GitHub: <a href="https://github.com/xpl/expression">https://github.com/xpl/expression</a></p>
-				<p>Send feedback to <a href="http://facebook.com/ololoe">facebook.com/ololoe</a> / <a href="mailto:rocket.mind@gmail.com">rocket.mind@gmail.com</a></p>
-				<p>	
-					<div class="fb-like" data-href="http://xpl.github.com/expression/" data-send="false" data-layout="button_count" data-width="100" data-show-faces="true"></div>
-					<a href="https://twitter.com/share" class="twitter-share-button" data-url="http://xpl.github.com/expression/">Tweet</a>
-<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="http://platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
-				</p>
-			</div>
-			<div class="modal-footer">
-				<button class="btn" data-dismiss="modal" aria-hidden="true">Close</button>
-			</div>
-		</div>
-		<div class="modal-overlay loading" style="display:none;">
-			<div class="modal">
-				<h5>loading...</h5>
-			</div>
-		</div>
-		<script type="text/javascript"> var _gaq = _gaq || []; _gaq.push(['_setAccount', 'UA-36084030-1']); _gaq.push(['_trackPageview']);
-			(function() { var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true; ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js'; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s); })();
-		</script>
 	</body>
 </html>

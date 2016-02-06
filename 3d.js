@@ -10,15 +10,15 @@ function domAPI (name) {
 
 window.requestAnimationFrame = domAPI ('requestAnimationFrame') || function (frame) { window.setTimeout (frame, 1000 / 60) }
 
-Transform = _.prototype ({
+Transform3D = _.prototype ({
 	constructor: function (value) {
 		this.value = value || mat4.identity (mat4.create ())
 	},
 	inverse: function () {
-		return new Transform (mat4.inverse (this.value, mat4.create ()))
+		return new Transform3D (mat4.inverse (this.value, mat4.create ()))
 	},
 	multiply: function (right) {
-		return new Transform (mat4.multiply (this.value, right.value, mat4.create ()))
+		return new Transform3D (mat4.multiply (this.value, right.value, mat4.create ()))
 	},
 	apply: function (vec) {
 		return mat4.multiplyVec3 (this.value, vec, vec3.create ())
@@ -27,10 +27,10 @@ Transform = _.prototype ({
 		return mat4.multiplyVec3 (mat4.inverse (this.value, mat4.create ()), vec, vec3.create ())
 	},
 	translate: function (vec) {
-		return new Transform (mat4.translate (this.value, vec, mat4.create ()))
+		return new Transform3D (mat4.translate (this.value, vec, mat4.create ()))
 	},
 	scale: function (vec) {
-		return new Transform (mat4.scale (this.value, vec, mat4.create ()))
+		return new Transform3D (mat4.scale (this.value, vec, mat4.create ()))
 	}
 })
 
@@ -55,6 +55,11 @@ Texture = _.prototype ({
 		this.gl.bindTexture (this.gl.TEXTURE_2D, this.texture)
 		this.gl.texImage2D (this.gl.TEXTURE_2D, 0, this.gl.RGBA,
 			this.width, this.height, 0, this.gl.RGBA, this.gl.UNSIGNED_BYTE, data)
+	},
+	updateFromImage: function (image) {
+		this.gl.bindTexture (this.gl.TEXTURE_2D, this.texture)
+		this.gl.pixelStorei (this.gl.UNPACK_FLIP_Y_WEBGL, true);
+        this.gl.texImage2D (this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, image);
 	}
 })
 
@@ -175,7 +180,7 @@ ShaderProgram = _.prototype ({
 		this.gl.attachShader (this.program, this.loadShader (cfg.fragment))
 		this.gl.linkProgram (this.program)
 		if (!this.gl.getProgramParameter(this.program, this.gl.LINK_STATUS)) {
-			alert ('Failed to link shader program')
+			Panic ('Failed to link shader program')
 		}
 		this.attributes = _.object (_.map (cfg.attributes || [], function (name) {
 			return [name, new ShaderAttribute (this.gl, this.gl.getAttribLocation (this.program, name))]
@@ -194,7 +199,7 @@ ShaderProgram = _.prototype ({
 			this.gl.shaderSource (shader, script.text ())
 			this.gl.compileShader (shader)
 			if (!this.gl.getShaderParameter (shader, this.gl.COMPILE_STATUS)) {
-				alert ('Failed to compile shader: ' + id + '\n' + this.gl.getShaderInfoLog (shader))
+				Panic ('Failed to compile shader: ' + id + '\n' + this.gl.getShaderInfoLog (shader))
 			}
 			return (ShaderProgram.loadedShaders[id] = shader)
 		}
@@ -204,25 +209,33 @@ ShaderProgram = _.prototype ({
 	}
 })
 
-Viewport = _.prototype ({
-	constructor: function (cfg) {
+MetaShader = $prototype ({
+
+	
+})
+
+Viewport = $component ({
+
+	$disableAutoThisBoundMethods: true,
+
+	init: function () {
+
 		_.extend (this, {
-			viewportWidth: $(cfg.canvas).width (),
-			viewportHeight: $(cfg.canvas).height (),
-			canvas: cfg.canvas,
+			viewportWidth: $(this.canvas).width (),
+			viewportHeight: $(this.canvas).height (),
 			lastFrameTime: 0,
 			elapsedTime: 0,
 			FPS: 0,
-			gl: _.find (_.map (['webgl', 'experimental-webgl', 'webkit-3d', 'moz-webgl'], function (name) {
+			gl: _.find (_.map (['webgl', 'experimental-webgl', 'webkit-3d', 'moz-webgl'], this.$ (function (name) {
 				try {
-					return cfg.canvas.getContext (name)
+					return this.canvas.getContext (name)
 				} catch (e) {
 					return undefined
 				}
-			}), _.identity)
+			})), _.identity)
 		})
 		if (this.gl) {
-			this.init ()
+			this.initGL ()
 			this.render ()
 		} else {
 			this.noGL ()
@@ -254,7 +267,7 @@ Viewport = _.prototype ({
 		$(this.canvas).attr ('height', this.viewportHeight = height)
 	},
 	/* override this */
-	init: function () {},
+	initGL: function () {},
 	beforeDraw: function () {},
 	draw: function () {},
 	doAnimation: function (elapsedTime) {}
