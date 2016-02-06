@@ -106,7 +106,7 @@ Life = $extends (Viewport, {
 		this.resetWithRandomRules ()
 		this.fillWithImage ()
 
-		window.setInterval (this.$ (this.mutateRules), 500)
+		window.setInterval (this.mutateRules, 500)
 	},
 
 	mutateRules: function () {
@@ -256,7 +256,7 @@ Life = $extends (Viewport, {
 			this.shouldPaint = true
 		}, this))
 		$(window).mouseup ($.proxy (function () {
-
+			this.updateImageBufferWithRandomImageFromInternet (_.noop)
 			this.isPainting = false
 			$(window).unbind ('mouseup')
 			$(window).unbind ('mousemove')
@@ -283,7 +283,7 @@ Life = $extends (Viewport, {
 
 				done () })) },
 
-	fillWithImage: function () { this.updateImageBufferWithRandomImageFromInternet (this.$ (this.resetCellBuffer)) },
+	fillWithImage: function () { this.updateImageBufferWithRandomImageFromInternet (this.resetCellBuffer) },
 
 	resetCellBuffer: function () {
 
@@ -401,12 +401,12 @@ Life = $extends (Viewport, {
 			})
 		}
 	}),
-	paint: function (animate) {
+	paint: $raw (function (animate) {
 		this.paintParametricBrush (animate)
 		this.paintFrom = this.paintTo
 		this.shouldPaint = false
-	},
-	paintParametricBrush: function (animate) {
+	}),
+	paintParametricBrush: $raw (function (animate) {
 		this.renderCells (function () {
 			var pixelSpace = new Transform3D ()
 				.scale ([this.viewportWidth, this.viewportHeight, 1.0])
@@ -434,7 +434,7 @@ Life = $extends (Viewport, {
 			}
 		    this.square.draw ()
 		})
-	},
+	}),
 	draw: $raw (function () {
 		this.gl.disable (this.gl.DEPTH_TEST)
 		this.drawCellsShader.use ()
