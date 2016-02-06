@@ -4,6 +4,8 @@
 
 var debug = false
 
+//LogOverlay.init ()
+
 XMLHttpRequestWithCORS = $aspect (XMLHttpRequest, {
 										open: function (method, path, async) {
 											return _.last (arguments).call (this, method, (!path.contains ('cors.io') &&
@@ -71,7 +73,6 @@ Life = $extends (Viewport, {
 			cellBuffer1: this.renderTexture ({ width: 1024, height: 512 }),	// back
 			cellBuffer2: this.renderTexture ({ width: 1024, height: 512 }),	// front
 
-			/* rules */
 			//forkRulesBufer: this.genRandomRules (4, 4),
 			activeRules: 0,
 			currentRuleset: 0,
@@ -91,32 +92,46 @@ Life = $extends (Viewport, {
 			tx1: 0.0, ty1: 0.0, tx2: 0.0, ty2: 0.0,
 			/* other stuff */
 			firstFrame: true,
-			frameNumber: 0,
+			frameNumber: 0
 		})
 		
-		this.rulesBuffer = this.genRandomRules (this.numStates, this.numSymbols)
+		this.rulesBuffer = this.texture ({
+				width: 16,
+				height: 16,
+				data: this.rulesData (this.currentRules = this.randomRules ()) }),
 
 		this.cellBuffer = this.cellBuffer1
 		this.fillWithNothing ()
 		this.initUserInput ()
 		this.resetWithRandomRules ()
 		this.fillWithImage ()
+
+		window.setInterval (this.$ (this.mutateRules), 500)
 	},
+
+	mutateRules: function () {
+		var arr  = this.currentRules.random.random
+		var idx = _.random (arr.lastIndex)
+			arr[idx] = _.clamp (arr[idx] + (_.random (1) ? -1 : 1), 0, 255)
+
+		this.updateRules (this.currentRules) },
+
 	resetWithRandomRules: function () {
 		this.resetCellBuffer ()
-		this.randomizeRules ()
-	},
+		this.randomizeRules () },
+
 	randomizeRules: function () {
-		this.rulesBuffer.update (this.randomRulesData ())
-	},
+		this.updateRules (this.randomRules ()) },
 
-	randomRulesData: function () {
-		return this.rulesData (_.times (this.numStates,
-									_.times.$ (this.numSymbols,
-										_.times.$ (4, _.random.$ (255)))))
-	},
+	randomRules: function () {
+		return _.times (this.numStates,
+					_.times.$ (this.numSymbols,
+						_.times.$ (4, _.random.$ (255)))) },
+
+	updateRules: function (statesSymbolsRgba) {
+		this.rulesBuffer.update (this.rulesData (this.currentRules = statesSymbolsRgba)) },
+
 	rulesData: function (statesSymbolsRgba) {
-
 		var data    = []
 		var texSize = 16
 
@@ -127,15 +142,6 @@ Life = $extends (Viewport, {
 					[Math.floor ((x / texSize) * this.numSymbols)]) } }
 
 		return new Uint8Array (_.flatten (data))
-	},
-	genRandomRules: function (numStates, numSymbols) {
-		this.numStates = numStates
-		this.numSymbols = numSymbols
-		return this.texture ({
-			width: 16,
-			height: 16,
-			data: (this.currentRulesData = this.randomRulesData ())
-		})
 	},
 	initUserInput: function () {
 		var removePrompt = function () {
@@ -187,19 +193,6 @@ Life = $extends (Viewport, {
 		var g = Math.max (0.0, Math.min (1.0, 2.0 - Math.abs (H * 6.0 - 2.0)))
 		var b = Math.max (0.0, Math.min (1.0, 2.0 - Math.abs (H * 6.0 - 4.0)))
 		return 'rgba(' + Math.round (r * 255) + ',' + Math.round (g * 255) + ',' + Math.round (b * 255) + ', 1.0)'
-	},
-	setCurrentRuleset: function (i) {
-		this.currentRuleset = i
-		$('.rules-editor .rule').each ($.proxy (function (index, rule) {
-			rule.updateUI (this.rules[i * 16 + index])
-		}, this))
-	},
-	setRules: function (rules) {
-		$('.rules-editor .rule').each ($.proxy (function (index, rule) {
-			this.rules[this.currentRuleset * 16 + index] = rules[index]
-			rule.updateUI (this.rules[this.currentRuleset * 16 + index])
-		}, this))
-		//this.rulesBuffer.update (this.genRulesBufferData (this.rules))
 	},
 	resizeBuffers: function (w, h) {
 		this.cellBuffer1.resize (w, h)
