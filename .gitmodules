@@ -10,3 +10,6 @@
 [submodule "node_modules/bootstrap"]
 	path = node_modules/bootstrap
 	url = https://github.com/twbs/bootstrap
+[submodule "node_modules/jquery-dist"]
+	path = node_modules/jquery-dist
+	url = https://github.com/jquery/jquery-dist
