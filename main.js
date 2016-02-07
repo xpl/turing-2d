@@ -149,7 +149,7 @@ Life = $extends (Viewport, {
 		this.resetWithRandomPrograms ()
 		this.fillWithImage ()
 
-		window.setInterval (this.$ (this.mutatePrograms), 50)
+		//window.setInterval (this.$ (this.mutatePrograms), 50)
 	},
 
 	mutatePrograms: function () {
