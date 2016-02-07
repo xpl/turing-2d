@@ -175,7 +175,7 @@
 
 		    		/* If cell wants to move at current fragment position..
 		    		 */
-		    		if (dotdot (moveDirection8 (moveTape) + address) < 0.01) {
+		    		if (dotdot (moveDirectionQ (moveTape) + address) < 0.01) {
 		    			return vec4 (1.0, nextState, current.z, progIndex); }
 
 		    	}
@@ -227,7 +227,7 @@
 			    			vec4 (decreaseLife (cell.x), cell.y ,cell.z, cell.w))))); }
 
 		    void main (void) {
-		    	gl_FragColor = step8 (pixelAt (vec2 (0.0, 0.0)));
+		    	gl_FragColor = stepQ (pixelAt (vec2 (0.0, 0.0)));
 		    }
 		</script>
 		<script id="cell-brush-fs" type="x-shader/x-fragment">
@@ -499,7 +499,7 @@
 
 			  	float edge = IsEdge(texCoord.xy);
 
-				gl_FragColor = vec4 (pow (cell.xyzw, vec4 (edge)));//vec4 (hsl.x, hsl.y, hsl.z, 1.0);
+				gl_FragColor = vec4 (pow (cell.xyz, vec3 (edge)), hsl.x);//vec4 (hsl.x, hsl.y, hsl.z, 1.0);
 		    }
 		</script>
 		<script id="downsample-cells-fs" type="x-shader/x-fragment">
