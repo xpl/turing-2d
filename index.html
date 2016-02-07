@@ -176,7 +176,7 @@
 		    		/* If cell wants to move at current fragment position..
 		    		 */
 		    		if (dotdot (moveDirectionQ (moveTape) + address) < 0.01) {
-		    			return vec4 (1.0, nextState, current.z, progIndex); }
+		    			return vec4 (1.0, nextState, current.z, cell.w); }
 
 		    	}
 		    	
