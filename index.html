@@ -100,7 +100,7 @@
 			#version 100
 		    precision mediump float;
 		    varying vec2 texCoord;
-		    uniform sampler2D previousStep, rules, forkRules;
+		    uniform sampler2D previousStep, program0, program1, program2;
 		    uniform vec2 screenSpace, seed;
 		    uniform float lifeDecrease;
 
@@ -151,7 +151,7 @@
 		    }
 
 		    vec4 getCommand (vec4 cell) {
-		    	return texture2D (rules, cell.yz); }
+		    	return texture2D (cell.w < 0.2 ? program0 : (cell.w < 0.5 ? program1 : program0), cell.yz); }
 
 		    /*	Evaluates neighbour cell and returns either:
 
@@ -162,11 +162,13 @@
 
 		    	/*	If cell is alive
 		    	 */
-		    	if (cell.x > 0.95) {
+		    	if (cell.x > 0.99) {
 
 		    		/*	Evaluate
 		    		 */
 		    		vec4  command     = getCommand (cell);
+
+		    		float progIndex   = command.x;
 		    		float writeSymbol = command.y;
 		    		float nextState   = command.z;
 		    		float moveTape    = command.w;
@@ -174,7 +176,7 @@
 		    		/* If cell wants to move at current fragment position..
 		    		 */
 		    		if (dotdot (moveDirection8 (moveTape) + address) < 0.01) {
-		    			return vec4 (1.0, nextState, current.z, 1.0); }
+		    			return vec4 (1.0, nextState, current.z, progIndex); }
 
 		    	}
 		    	
@@ -199,8 +201,8 @@
 			    	convolute (vec2 ( 0.0, -1.0),
 			    	convolute (vec2 (-1, -1),
 			    	convolute (vec2 (-1.0,  0.0),
-			    		(cell.x > 0.95) ?
-			    			vec4 (0.94, cell.y, command.y, command.w) :
+			    		(cell.x > 0.99) ?
+			    			vec4 (0.98, cell.y, command.y, command.w) :
 			    			vec4 (decreaseLife (cell.x), cell.y ,cell.z, cell.w))))))))); }
 
 		    vec4 stepX (vec4 cell) { vec4 command = getCommand (cell);
@@ -209,8 +211,8 @@
 			    	convolute (vec2 ( 1,  1),
 			    	convolute (vec2 ( 1, -1),
 			    	convolute (vec2 (-1, -1),
-			    		(cell.x > 0.95) ?
-			    			vec4 (0.94, cell.y, command.y, command.w) :
+			    		(cell.x > 0.99) ?
+			    			vec4 (0.98, cell.y, command.y, command.w) :
 			    			vec4 (decreaseLife (cell.x), cell.y ,cell.z, cell.w))))); }
 
 		    vec4 stepQ (vec4 cell) { vec4 command = getCommand (cell);
@@ -219,8 +221,8 @@
 			    	convolute (vec2 ( 1.0,  0.0),
 			    	convolute (vec2 ( 0.0,  1.0),
 			    	convolute (vec2 (-1.0,  0.0),
-			    		(cell.x > 0.95) ?
-			    			vec4 (0.94, cell.y, command.y, // write symbol
+			    		(cell.x > 0.99) ?
+			    			vec4 (0.98, cell.y, command.y, // write symbol
 			    								command.w) :
 			    			vec4 (decreaseLife (cell.x), cell.y ,cell.z, cell.w))))); }
 
@@ -278,7 +280,7 @@
 			    		float state = rand (seed);
 			    		gl_FragColor = vec4 (alive, state, rand (seed + 0.2), rand (seed + 0.5));*/
 
-			    	gl_FragColor = pixelAt (image, vec2 (0, 0));
+			    	gl_FragColor = vec4 (pixelAt (image, vec2 (0, 0)).xyz, hue);
 
 		    	} else {
 		    		gl_FragColor = pixelAt (cells, vec2 (0, 0));
@@ -314,7 +316,7 @@
 			#version 100
 		    precision mediump float;
 		    varying vec2 texCoord;
-		    uniform sampler2D cells, rules;
+		    uniform sampler2D cells;
 		    float pi = 3.14159265358979323846264;
 			vec3 hue (float H)
 			{
@@ -340,13 +342,13 @@
 				float cursor = cell.x;
 		    	float state = cell.y;
 		    	float symbol = cell.z;
-		    	float action = cell.w;
+		    	float progIndex = cell.w;
 
 				//gl_FragColor = vec4 (hsl (symbol, 1.0, cursor), 1.0);
 
-				//gl_FragColor = vec4 (texture2D (rules, texCoord).xyz, 1);
+				//gl_FragColor = vec4 (texture2D (programs, texCoord).xyz, 1);
 
-				gl_FragColor = vec4 (hsl (fract (state * symbol + action), state, cursor), 1.0);
+				gl_FragColor = vec4 (hsl (fract (state * symbol + progIndex), state, cursor), 1.0);
 		    }
 		</script>
 		<script id="downsample-cells-fs" type="x-shader/x-fragment">
@@ -396,7 +398,7 @@
 			#version 100
 		    precision mediump float;
 		    varying vec2 texCoord;
-		    uniform sampler2D cells, rules;
+		    uniform sampler2D cells;
 
 			vec3 rgb2hsl (vec3 v) {
 			    float maxx = max (max (v.r, v.g), v.b), minn = min (min (v.r, v.g), v.b);
@@ -497,7 +499,7 @@
 
 			  	float edge = IsEdge(texCoord.xy);
 
-				gl_FragColor = vec4 (pow (cell.xyz, vec3 (edge)), edge);//vec4 (hsl.x, hsl.y, hsl.z, 1.0);
+				gl_FragColor = vec4 (pow (cell.xyzw, vec4 (edge)));//vec4 (hsl.x, hsl.y, hsl.z, 1.0);
 		    }
 		</script>
 		<script id="downsample-cells-fs" type="x-shader/x-fragment">

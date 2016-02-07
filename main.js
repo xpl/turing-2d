@@ -12,6 +12,48 @@ XMLHttpRequestWithCORS = $aspect (XMLHttpRequest, {
 																			 			   !path.contains (window.location.host))
 																								? ('http://cors.io/?u=' + path) : path, async) } })
 
+Program = $prototype ({
+
+	constructor: function (context, index, numStates, numSymbols, matrix) {
+							this.index       = index
+							this.numStates   = numStates
+							this.numSymbols  = numSymbols
+							this.matrix 	 = matrix || this.randomMatrix
+							this.textureSize = 16
+							this.buffer 	 = context.texture ({	width:  this.textureSize,
+																	height: this.textureSize,
+															    	data:   this.asByteArray }) },
+	randomMatrix: $property (function () { var index = this.index
+
+								return _.times (this.numStates,
+											_.times.$ (this.numSymbols, function () {
+																			return [Math.floor (this.index * 255),
+																					_.random (255),
+																					_.random (255),
+																					_.random (255)] })) }),
+	update: function (matrix) {
+				this.matrix = matrix || this.matrix
+				this.buffer.update (this.asByteArray) },
+
+	randomize: function () { this.update (this.randomMatrix) },
+
+	asByteArray: $property (function () {	var data    = []
+											var texSize = this.textureSize
+
+											for (var y = 0; y < texSize; y++) {
+												for (var x = 0; x < texSize; x++) {
+													data.push (this.matrix[Math.floor ((y / texSize) * this.numStates)]
+																	      [Math.floor ((x / texSize) * this.numSymbols)]) } }
+											return new Uint8Array (
+														_.flatten (data)) }),
+	mutate: function () {
+		var arr  = this.matrix.random.random
+		var idx = _.random (arr.lastIndex)
+			arr[idx] = _.clamp (arr[idx] + (_.random (1) ? -1 : 1), 0, 255)
+
+		this.update () } })
+
+
 Life = $extends (Viewport, {
 
 	constructor: function (cfg) {
@@ -26,7 +68,7 @@ Life = $extends (Viewport, {
 				vertex: 'simple-vs',
 				fragment: 'convert-colors-fs',
 				attributes: ['position'],
-				uniforms: ['cells', 'rules', 'transform']
+				uniforms: ['cells', 'transform']
 			}),
 			randomNoiseShader: this.shaderProgram ({
 				vertex: 'cell-vs',
@@ -38,7 +80,7 @@ Life = $extends (Viewport, {
 				vertex: 'cell-vs-pixeloffset',
 				fragment: 'update-program-fs',
 				attributes: ['position'],
-				uniforms: ['previousStep', 'screenSpace', 'rules', 'forkRules', 'pixelOffset', 'numStates', 'numSymbols', 'seed', 'lifeDecrease']
+				uniforms: ['previousStep', 'screenSpace', 'program0', 'program1', 'program2', 'pixelOffset', 'numStates', 'numSymbols', 'seed', 'lifeDecrease']
 			}),
 			parametricBrushShader: this.shaderProgram ({
 				vertex: 'cell-vs-pixeloffset',
@@ -52,7 +94,7 @@ Life = $extends (Viewport, {
 				vertex: 'simple-vs',
 				fragment: 'draw-cells-fs',
 				attributes: ['position'],
-				uniforms: ['cells', 'rules', 'transform']
+				uniforms: ['cells', 'transform']
 			}),
 			downsampleShader: this.shaderProgram ({
 				vertex: 'cell-vs',
@@ -76,9 +118,7 @@ Life = $extends (Viewport, {
 			cellBuffer1: this.renderTexture ({ width: 512, height: 512 }),	// back
 			cellBuffer2: this.renderTexture ({ width: 512, height: 512 }),	// front
 
-			//forkRulesBufer: this.genRandomRules (4, 4),
-			activeRules: 0,
-			currentRuleset: 0,
+			//forkProgramsBufer: this.genRandomPrograms (4, 4),
 			/* transform matrices */
 			transform: new Transform3D (),
 			screenTransform: new Transform3D (),
@@ -95,57 +135,33 @@ Life = $extends (Viewport, {
 			tx1: 0.0, ty1: 0.0, tx2: 0.0, ty2: 0.0,
 			/* other stuff */
 			firstFrame: true,
-			frameNumber: 0
+			frameNumber: 0,
+			programs: [],
+			activeProgram: 0,
 		})
-		
-		this.rulesBuffer = this.texture ({
-				width: 16,
-				height: 16,
-				data: this.rulesData (this.currentRules = this.randomRules ()) }),
+
+		for (var i = 0; i < 3; i++) {
+			this.programs.push (new Program (this, [0.1, 0.4, 0.7][i], this.numSymbols, this.numStates)) }
 
 		this.cellBuffer = this.cellBuffer1
 		this.fillWithNothing ()
 		this.initUserInput ()
-		this.resetWithRandomRules ()
+		this.resetWithRandomPrograms ()
 		this.fillWithImage ()
 
-		window.setInterval (this.$ (this.mutateRules), 300)
+		window.setInterval (this.$ (this.mutatePrograms), 50)
 	},
 
-	mutateRules: function () {
-		var arr  = this.currentRules.random.random
-		var idx = _.random (arr.lastIndex)
-			arr[idx] = _.clamp (arr[idx] + (_.random (1) ? -1 : 1), 0, 255)
+	mutatePrograms: function () {
+		_.invoke (this.programs, 'mutate') },
 
-		this.updateRules (this.currentRules) },
-
-	resetWithRandomRules: function () {
+	resetWithRandomPrograms: function () {
 		this.resetCellBuffer ()
-		this.randomizeRules () },
+		this.randomizePrograms () },
 
-	randomizeRules: function () {
-		this.updateRules (this.randomRules ()) },
+	randomizePrograms: function () {
+		_.invoke (this.programs, 'randomize') },
 
-	randomRules: function () {
-		return _.times (this.numStates,
-					_.times.$ (this.numSymbols,
-						_.times.$ (4, _.random.$ (255)))) },
-
-	updateRules: function (statesSymbolsRgba) {
-		this.rulesBuffer.update (this.rulesData (this.currentRules = statesSymbolsRgba)) },
-
-	rulesData: function (statesSymbolsRgba) {
-		var data    = []
-		var texSize = 16
-
-		for (var y = 0; y < texSize; y++) {
-			for (var x = 0; x < texSize; x++) {
-				data.push (statesSymbolsRgba
-					[Math.floor ((y / texSize) * this.numStates)]
-					[Math.floor ((x / texSize) * this.numSymbols)]) } }
-
-		return new Uint8Array (_.flatten (data))
-	},
 	initUserInput: function () {
 		var removePrompt = function () {
 			$('.draw-prompt').remove ()
@@ -166,17 +182,11 @@ Life = $extends (Viewport, {
 		$(window).keydown ($.proxy (function (e) {
 			switch (e.keyCode) {
 				case 18: /* alt */
-					if (!this.isPainting) {
-						this.onCloneStart (e);
-					}
 					break;
-				case 49: /* 1 */ $('.ruleset-1').click (); break;
-				case 50: /* 2 */ $('.ruleset-2').click (); break;
-				case 51: /* 3 */ $('.ruleset-3').click (); break;
 				case 78: /* n */ this.setBrushType ('noise'); break;
-				//case 32: /* space */ this.paused = !this.paused; break;
-				case 9 : /*	tab */ this.resetWithRandomRules ();  e.preventDefault (); break;
-				case 13 : /* enter */ this.randomizeRules ();  e.preventDefault (); break;
+				case 32: /* space */ this.paused = !this.paused; break;
+				case 9 : /*	tab */ this.resetWithRandomPrograms ();  e.preventDefault (); break;
+				case 13 : /* enter */ this.randomizePrograms ();  e.preventDefault (); break;
 				case 27: /* esc */ this.fillWithImage ();  e.preventDefault (); break;// $('.controls .scroll-speed').slider ('value', this.scrollSpeed = 0); break;
 			}
 		}, this))
@@ -296,7 +306,7 @@ Life = $extends (Viewport, {
 			this.convertColorsShader.attributes.position.bindBuffer (this.square)
 			this.convertColorsShader.uniforms.transform.setMatrix (this.screenTransform)
 			this.convertColorsShader.uniforms.cells.bindTexture (this.imageBuffer, 0)
-			this.convertColorsShader.uniforms.rules.bindTexture (this.rulesBuffer, 1)
+
 			this.square.draw () }, this)
 
 				this.firstFrame = true
@@ -375,15 +385,17 @@ Life = $extends (Viewport, {
 		this.cellBuffer = targetBuffer
 		this.firstFrame = false
 	}),
-	iterate: $raw (function () { var framesToSkip = 10
+	iterate: $raw (function () { var framesToSkip = 20
 
 		for (var i = 0; i < framesToSkip; i++) {
 			this.renderCells (function () {
 				this.updateProgramShader.use ()
 				this.updateProgramShader.attributes.position.bindBuffer (this.square)
 				this.updateProgramShader.uniforms.previousStep.bindTexture (this.cellBuffer, 0)
-				this.updateProgramShader.uniforms.rules.bindTexture (this.rulesBuffer, 1)
-				//this.updateProgramShader.uniforms.rules.bindTexture (this.forkRulesBufer, 2)
+
+				_.each (this.programs, function (program, i) {
+					this.updateProgramShader.uniforms['program' + i].bindTexture (program.buffer, 1 + i) }, this)
+
 				this.updateProgramShader.uniforms.seed.set2f (Math.random (), Math.random ())
 
 				//this.updateProgramShader.uniforms.lifeDecrease.set1f (1.0 / 255.0)
@@ -444,7 +456,6 @@ Life = $extends (Viewport, {
 		this.drawCellsShader.attributes.position.bindBuffer (this.square)
 		this.drawCellsShader.uniforms.transform.setMatrix (this.screenTransform)
 		this.drawCellsShader.uniforms.cells.bindTexture (this.cellBuffer, 0)
-		this.drawCellsShader.uniforms.rules.bindTexture (this.rulesBuffer, 1)
 		this.square.draw ()
 	}),
 	noGL: function () {
