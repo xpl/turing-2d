@@ -6,7 +6,7 @@
 	url = https://github.com/jquery/jquery
 [submodule "node_modules/useless"]
 	path = node_modules/useless
-	url = https://github.com/xpl/useless
+	url = http://github.com/xpl/useless
 [submodule "node_modules/jquery-dist"]
 	path = node_modules/jquery-dist
 	url = https://github.com/jquery/jquery-dist
