@@ -278,6 +278,7 @@ Life = $extends (Viewport, {
 
 	updateImageBufferWithRandomImageFromInternet: function (done) {
 
+		//Image.fetch ('pt1.png')
 		Image.fetch ('http://lorempixel.com/' + this.cellBuffer.width + '/' + this.cellBuffer.height + '/' + '?' + Math.random ())
 			 .done (this.$ (function (img) {
 
