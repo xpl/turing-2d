@@ -114,9 +114,9 @@ Life = $extends (Viewport, {
 			}),
 			/* buffers */
 			cellBuffer: null, 												// current
-			imageBuffer: this.texture 		({ width: 512, height: 512 }),
-			cellBuffer1: this.renderTexture ({ width: 512, height: 512 }),	// back
-			cellBuffer2: this.renderTexture ({ width: 512, height: 512 }),	// front
+			imageBuffer: this.texture 		({ width: 1024, height: 512 }),
+			cellBuffer1: this.renderTexture ({ width: 1024, height: 512 }),	// back
+			cellBuffer2: this.renderTexture ({ width: 1024, height: 512 }),	// front
 
 			//forkProgramsBufer: this.genRandomPrograms (4, 4),
 			/* transform matrices */
